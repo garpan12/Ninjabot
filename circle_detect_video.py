@@ -3,7 +3,7 @@ import cv2
 import sys
 import numpy as np
 
-capture = cv.CaptureFromCAM(0)
+capture = cv.CaptureFromCAM(-1)
 
 # some random colors to draw circles and their center points with
 d_red = cv.RGB(150, 55, 65)
@@ -127,14 +127,64 @@ def draw_circles(storage, output):
         cv.Circle(output, (x, y), 1, l_red, -1, 8, 0)
         cv.Circle(output, (x, y), Radius, d_red, 3, 8, 0)
 
-        
 
+def draw_grid(grid):
+    #bg = cv.Scalar(255, 255, 255)
+    #cv.Rectangle(grid,(0,0),(grid.width,grid.width),bg, cv.CV_FILLED )
+
+    color = cv.Scalar(20, 70, 70)
+    x=0;
+    while x < grid.width:
+        #cv.Point
+        cv.Line(grid, (x,0), (x,grid.width), color, thickness=1, lineType=8, shift=0)
+        x = x  + 20;
+
+    x=0;
+    while x < grid.height:
+        #cv.Point
+        cv.Line(grid, (0,x), (grid.width,x), color, thickness=1, lineType=8, shift=0)
+        x = x  + 20;    
+        #for y in range(0 , grid.height):
+         #   cv.Line(grid, (x,x), (x,y), color, thickness=1, lineType=8, shift=5)
+    #for
+     #   Line(img, pt1, pt2, color, thickness=1, lineType=8, shift=0)        
+
+def update_grid(storage, output, grid ):
+    #grid = cv.CreateImage((orig.width*2,orig.height), cv.IPL_DEPTH_8U, 3)
+    warp = perspective_transform(output)
+    draw_grid(warp)
+    
+    #draw_circles(storage , warp)
+    return warp
+
+
+def perspective_transform(image_in):
+    #gray = cv.CreateImage(cv.GetSize(image_in),8,1)
+    #cv.CvtColor(image_in,gray, cv.CV_BGR2GRAY)
+    image = np.asarray(image_in[:,:])
+    #img = cv2.GaussianBlur(image,(5,5),0)
+    #gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    #eig_image = cv.CreateImage(cv.GetSize(image_in),8,1)
+    #temp_image= cv.CreateImage(cv.GetSize(image_in),8,1)
+    #cornerMap = cv.CreateMat(image_in.height, image_in.width, cv.CV_32FC1)
+    #cornerMap =cv.GoodFeaturesToTrack(gray, eig_image, temp_image, 4, 0.04, 1, useHarris = True)
+    #print cornerMap #[(491.0, 461.0), (203.0, 38.0), (195.0, 58.0), (201.0, 56.0)]
+    src = np.array([[225,0],[545,44],[0,398],[450,480]],np.float32)
+    dst = np.array([[0,0],[image_in.width,image_in.height],[0,image_in.height],[image_in.width,0]],np.float32)
+    retval = cv2.getPerspectiveTransform(src,dst)
+    warp = cv2.warpPerspective(image, retval, (cv.GetSize(image_in)))
+
+    output = cv.fromarray(warp)
+
+    return output
 
 orig = cv.QueryFrame(capture)
 processed = cv.CreateImage((orig.width,orig.height), cv.IPL_DEPTH_8U, 1)
+grid = cv.CreateImage((orig.width*2,orig.height), cv.IPL_DEPTH_8U, 3)
 storage = cv.CreateMat(orig.width, 1, cv.CV_32FC3)
 s = []
 
+draw_grid( grid )
 while True:
     orig = cv.QueryFrame(capture)
     #cv.Normalize(orig)
@@ -151,18 +201,28 @@ while True:
     find_circles(processed, storage, 100)
 
     #if it is in the range of 1 to 9, we can try and recalibrate our filter
-    if 1 <= storage.rows < 10:
-        s = autocalibrate(orig, storage)
+    #if 1 <= storage.rows < 10:
+    #    s = autocalibrate(orig, storage)
         
 
 
     draw_circles(storage, orig)
+
+    warp = update_grid(storage, orig, grid)
+
 
     # Delete and recreate the storage so it has the correct width
     del(storage)
     storage = cv.CreateMat(orig.width, 1, cv.CV_32FC3)
     
     cv.ShowImage('output', orig)
+
+
+    
+    cv.ShowImage('grid', warp)
+
+    #warp = perspective_transform(orig)
+    #cv.ShowImage('warped', warp)
 
     if cv.WaitKey(10) == 27:
         break
