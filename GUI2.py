@@ -1,14 +1,24 @@
+import wx
 import cv2.cv as cv
-import cv2
+import win32api 
+import win32con 
+
+#The panel containing the webcam video
+
 import sys
 import numpy as np
 
-capture = cv.CaptureFromCAM(0)
-capture2 = cv.CaptureFromCAM(1)
+capture = cv.CaptureFromCAM(1)
 
 # some random colors to draw circles and their center points with
 d_red = cv.RGB(150, 55, 65)
 l_red = cv.RGB(250, 200, 200)
+orig = cv.QueryFrame(capture)
+processed = cv.CreateImage((orig.width,orig.height), cv.IPL_DEPTH_8U, 1)
+grid = cv.CreateImage((orig.width*2,orig.height), cv.IPL_DEPTH_8U, 3)
+storage = cv.CreateMat(orig.width, 1, cv.CV_32FC3)
+s = []
+
 
 def autocalibrate(orig, storage):
     
@@ -179,17 +189,9 @@ def perspective_transform(image_in):
 
     return output
 
-orig = cv.QueryFrame(capture)
-orig2 = cv.QueryFrame(capture2)
-processed = cv.CreateImage((orig.width,orig.height), cv.IPL_DEPTH_8U, 1)
-grid = cv.CreateImage((orig.width*2,orig.height), cv.IPL_DEPTH_8U, 3)
-storage = cv.CreateMat(orig.width, 1, cv.CV_32FC3)
-s = []
 
-draw_grid( grid )
-while True:
+def run():
     orig = cv.QueryFrame(capture)
-    orig2 = cv.QueryFrame(capture2)
     #cv.Normalize(orig)
     # filter for all yellow and blue - everything else is black
     processed = colorFilterCombine(orig, "yellow", "blue" ,s)
@@ -198,7 +200,7 @@ while True:
     cv.Canny(processed, processed, 5, 70, 3)
     cv.Smooth(processed, processed, cv.CV_GAUSSIAN, 7, 7)
     
-    #cv.ShowImage('processed2', processed)
+    cv.ShowImage('processed2', processed)
     
     # Find&Draw circles
     find_circles(processed, storage, 100)
@@ -218,14 +220,88 @@ while True:
     del(storage)
     storage = cv.CreateMat(orig.width, 1, cv.CV_32FC3)
     
-    cv.ShowImage('output', orig)
-    cv.ShowImage('output2', orig2)
+    #cv.ShowImage('output', orig)
 
+    return processed
     
     #cv.ShowImage('grid', warp)
 
     #warp = perspective_transform(orig)
     #cv.ShowImage('warped', warp)
 
-    if cv.WaitKey(10) == 27:
-        break
+
+
+class CvDisplayPanel(wx.Panel):
+    TIMER_PLAY_ID = 101 
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent, -1)
+
+        """
+        #magic to stop the flickering
+        def SetCompositeMode(self, on=True): 
+            exstyle = win32api.GetWindowLong(self.GetHandle(), win32con.GWL_EXSTYLE) 
+            if on: 
+                exstyle |= win32con.WS_EX_COMPOSITED 
+            else: 
+                exstyle &= ~win32con.WS_EX_COMPOSITED 
+            win32api.SetWindowLong(self.GetHandle(), win32con.GWL_EXSTYLE, exstyle) 
+
+        SetCompositeMode(self, True)
+        """
+
+        #self.capture = cv.CaptureFromCAM(0) # turn on the webcam
+        #img = cv.QueryFrame(self.capture) # Convert the raw image data to something wxpython can handle.
+        #cv.CvtColor(img, img, cv.CV_BGR2RGB) # fix color distortions
+        img = run()
+        self.bmp = wx.BitmapFromBuffer(img.width, img.height, img.tostring())
+        sbmp = wx.StaticBitmap(self, -1, bitmap=self.bmp) # Display the resulting image
+
+        
+        self.playTimer = wx.Timer(self, self.TIMER_PLAY_ID) 
+        wx.EVT_TIMER(self, self.TIMER_PLAY_ID, self.onNextFrame) 
+        fps = cv.GetCaptureProperty(self.capture, cv.CV_CAP_PROP_FPS) 
+
+        if fps!=0: self.playTimer.Start(1000/fps) # every X ms 
+        else: self.playTimer.Start(1000/15) # assuming 15 fps 
+
+
+    def onNextFrame(self, evt):
+        #img = cv.QueryFrame(self.capture)
+        img = run()
+        if img:
+            #cv.CvtColor(img, img, cv.CV_BGR2RGB)
+            self.bmp.CopyFromBuffer(img.tostring()) # update the bitmap to the current frame
+            self.Refresh()
+        evt.Skip()
+
+
+class MyFrame(wx.Frame):
+    """ We simply derive a new class of Frame. """
+    def __init__(self, parent, title):
+        wx.Frame.__init__(self, parent, title=title, size=(700,700))
+        self.displayPanel = CvDisplayPanel(self) # display panel for video
+
+        self.CreateStatusBar() # A Statusbar in the bottom of the window
+
+        filemenu= wx.Menu() # Setting up the menu.
+
+        # wx.ID_EXIT is a standard ID provided by wxWidgets.
+        filemenu.AppendSeparator()
+        menuExit=filemenu.Append(wx.ID_EXIT,"E&xit"," Terminate the program")
+
+        # events for the menu bar
+        self.Bind(wx.EVT_MENU, self.OnExit, menuExit)
+
+        menuBar = wx.MenuBar() # Creating the menubar.
+        menuBar.Append(filemenu,"&File") # Adding the "filemenu" to the MenuBar
+        self.SetMenuBar(menuBar)  # Adding the MenuBar to the Frame content.
+
+    def OnExit(self,evt):
+        self.Close(True)  # Close the frame.
+
+
+draw_grid( grid )
+app = wx.App(False)  # Create a new app, don't redirect stdout/stderr to a window.
+frame = MyFrame(None, "GUI Magic") # A Frame is a top-level window.
+frame.Show(True)     # Show the frame.
+app.MainLoop()
