@@ -58,7 +58,7 @@ class CvDisplayPanel(wx.Panel):
 
     TIMER_PLAY_ID = 101 
     def __init__(self, parent):
-        wx.Panel.__init__(self, parent, -1)
+        wx.Panel.__init__(self, parent, size=(200,200))
 
         #magic to stop the flickering
         def SetCompositeMode(self, on=True): 
@@ -146,7 +146,7 @@ class CvDisplayPanel2(wx.Panel):
 
     TIMER_PLAY_ID = 101 
     def __init__(self, parent):
-        wx.Panel.__init__(self, parent, -1)
+        wx.Panel.__init__(self, parent,  size=(200,200))
 
         #magic to stop the flickering
         def SetCompositeMode(self, on=True): 
@@ -194,7 +194,7 @@ class CvDisplayPanel2(wx.Panel):
 
 class CvDisplayPanel3(wx.Panel):
 
-    def ImagePro(self,orig,orig2,storage,grid,warp):
+    def merge(self,orig,orig2,storage,grid,warp):
         #orig = cv.QueryFrame(capture)
         #cv.Normalize(orig)
         # filter for all yellow and blue - everything else is black
@@ -212,13 +212,23 @@ class CvDisplayPanel3(wx.Panel):
         #if it is in the range of 1 to 9, we can try and recalibrate our filter
         #if 1 <= storage.rows < 10:
         #    s = autocalibrate(orig, storage)
+        combined = cv.CreateImage((orig.width*2,orig.height), cv.IPL_DEPTH_8U, 3)
+        #combined = processor.draw_grid(orig)
+
+        """
+        cv.SetImageROI(orig,(100,100,orig2.width,orig2.height))
+        cv.Add(orig2,orig,orig2)
+        #cv.Add(combined,orig,combined)
+        cv.ResetImageROI(orig)
         
-        grid = processor.draw_grid(orig)    
+        """
+        return combined
+        #self.grid = processor.draw_grid(orig)    
 
 
         #processor.draw_circles(storage, orig)
 
-        grid = processor.update_grid(storage, orig, grid)
+        #grid = processor.update_grid(storage, orig, grid)
 
 
         # Delete and recreate the storage so it has the correct width
@@ -235,7 +245,7 @@ class CvDisplayPanel3(wx.Panel):
 
     TIMER_PLAY_ID = 101 
     def __init__(self, parent):
-        wx.Panel.__init__(self, parent, -1)
+        wx.Panel.__init__(self, parent, size=(400,200))
 
         #magic to stop the flickering
         def SetCompositeMode(self, on=True): 
@@ -252,9 +262,9 @@ class CvDisplayPanel3(wx.Panel):
         #img = ImagePro # Convert the raw image data to something wxpython can handle.
         #cv.CvtColor(img, img, cv.CV_BGR2RGB) # fix color distortions
         storage = cv.CreateMat(orig.width, 1, cv.CV_32FC3)
-        self.ImagePro(orig,orig2,storage,grid,warp)
+        combined = self.merge(orig,orig2,storage,grid,warp)
         #cv.CvtColor(grid, grid, cv.CV_BGR2RGB)
-        self.bmp = wx.BitmapFromBuffer(grid.width, grid.height, grid.tostring())
+        self.bmp = wx.BitmapFromBuffer(combined.width, combined.height, combined.tostring())
         sbmp = wx.StaticBitmap(self, -1, bitmap=self.bmp) # Display the resulting image
 
         
@@ -271,31 +281,33 @@ class CvDisplayPanel3(wx.Panel):
     def onNextFrame(self, evt):
         storage = cv.CreateMat(orig.width, 1, cv.CV_32FC3)
 
-        self.ImagePro(orig,orig2,storage,grid,warp)
+        combined = self.merge(orig,orig2,storage,grid,warp)
         #img = processed
-        if grid:
-            #cv.CvtColor(grid, grid, cv.CV_BGR2RGB)
-            self.bmp.CopyFromBuffer(grid.tostring()) # update the bitmap to the current frame
+        if combined:
+            #cv.CvtColor(combined, combined, cv.CV_BGR2RGB)
+            self.bmp.CopyFromBuffer(combined.tostring()) # update the bitmap to the current frame
             self.Refresh()
             #del(storage)
             #storage = cv.CreateMat(orig.width, 1, cv.CV_32FC3)
         evt.Skip()
 
 
-class MyFrame(wx.Frame):
+class Cameras(wx.Frame):
     """ We simply derive a new class of Frame. """
     def __init__(self, parent, title):
-        wx.Frame.__init__(self, parent, title=title,size=(1000,600))
+        wx.Frame.__init__(self, parent, title=title, size=(900,600))
 
         self.displayPanel = CvDisplayPanel(self) # display panel for video
         displayPanel2 = CvDisplayPanel2(self)
         displayPanel3 = CvDisplayPanel3(self)
+
         hbox = wx.BoxSizer()
-        hbox.Add(self.displayPanel, 1, wx.EXPAND | wx.ALL, 5)
-        hbox.Add(displayPanel2, 1, wx.EXPAND | wx.ALL, 5)       
+        hbox.Add(self.displayPanel, 1, wx.EXPAND | wx.ALL, 0)
+        hbox.Add(displayPanel2, 1, wx.EXPAND | wx.ALL, 0)       
         vbox = wx.BoxSizer(wx.VERTICAL)
-        vbox.Add(hbox, 1, wx.EXPAND | wx.ALL, 5)
-        vbox.Add(displayPanel3, 1, wx.EXPAND | wx.ALL, 5)
+        vbox.Add(hbox, 1, wx.EXPAND | wx.ALL, 0)
+        vbox.Add(displayPanel3, 1, wx.EXPAND | wx.ALL, 0)
+
         self.SetSizer(vbox)
         self.Centre()
 
@@ -321,10 +333,22 @@ class MyFrame(wx.Frame):
     def OnExit(self,evt):
         self.Close(True)  # Close the frame.
 
-#def ImageInit(camera):
-
-
-
+class Control(wx.Frame):
+    def __init__(self, parent, title):
+        wx.Frame.__init__(self, parent, title=title, size=(200,300))
+        display = wx.TextCtrl(self, -1, '',  style=wx.TE_RIGHT)
+        box = wx.BoxSizer(wx.VERTICAL)
+        buttons = wx.GridSizer(2, 3, 1, 1)
+        buttons.AddMany([(wx.Button(self, 1, 'Stop') , 0, wx.EXPAND),
+                        (wx.Button(self, 2, 'Up') , 0, wx.EXPAND),
+                        (wx.Button(self, 3, 'Start') , 0, wx.EXPAND),
+                        (wx.Button(self, 4, 'Left') , 0, wx.EXPAND),
+                        (wx.Button(self, 5, 'Down') , 0, wx.EXPAND),
+                        (wx.Button(self, 6, 'Right') , 0, wx.EXPAND)])
+        box.Add(display, 1, wx.EXPAND)
+        box.Add(buttons, 1, wx.EXPAND)
+        self.SetSizer(box)
+        self.Centre()
 
 #ImageInit(0)
 capture = cv.CaptureFromCAM(0)
@@ -346,6 +370,9 @@ s = []
 #processor.draw_grid(grid)
 
 app = wx.App(False)  # Create a new app, don't redirect stdout/stderr to a window.
-frame = MyFrame(None, "GUI Magic") # A Frame is a top-level window.
+frame = Cameras(None, "Cameras") # A Frame is a top-level window.
 frame.Show(True)     # Show the frame.
+
+frame2 = Control(None, "Control") # A Frame is a top-level window.
+frame2.Show(True) 
 app.MainLoop()
