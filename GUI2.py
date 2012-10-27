@@ -55,10 +55,14 @@ class CvDisplayPanel(wx.Panel):
 
         #warp = perspective_transform(orig)
         #cv.ShowImage('warped', warp)
+        mask = cv.CreateImage((640,480), cv.IPL_DEPTH_8U, 3)
+        cv.Resize(orig,mask)
+        return mask
+
 
     TIMER_PLAY_ID = 101 
     def __init__(self, parent):
-        wx.Panel.__init__(self, parent, size=(200,200))
+        wx.Panel.__init__(self, parent)
 
         #magic to stop the flickering
         def SetCompositeMode(self, on=True): 
@@ -77,7 +81,7 @@ class CvDisplayPanel(wx.Panel):
         storage = cv.CreateMat(orig.width, 1, cv.CV_32FC3)
         self.ImagePro(capture,orig,processed,storage,grid)
         cv.CvtColor(orig, orig, cv.CV_BGR2RGB)
-        self.bmp = wx.BitmapFromBuffer(orig.width, orig.height, orig.tostring())
+        self.bmp = wx.BitmapFromBuffer(640, 300, orig.tostring())
         sbmp = wx.StaticBitmap(self, -1, bitmap=self.bmp) # Display the resulting image
 
         
@@ -143,10 +147,13 @@ class CvDisplayPanel2(wx.Panel):
 
         #warp = perspective_transform(orig)
         #cv.ShowImage('warped', warp)
+        mask = cv.CreateImage((640,480), cv.IPL_DEPTH_8U, 3)
+        cv.Resize(orig,mask)
+        return mask
 
     TIMER_PLAY_ID = 101 
     def __init__(self, parent):
-        wx.Panel.__init__(self, parent,  size=(200,200))
+        wx.Panel.__init__(self, parent)
 
         #magic to stop the flickering
         def SetCompositeMode(self, on=True): 
@@ -165,7 +172,7 @@ class CvDisplayPanel2(wx.Panel):
         storage = cv.CreateMat(orig.width, 1, cv.CV_32FC3)
         self.ImagePro(capture2,orig2,processed2,storage,grid)
         cv.CvtColor(orig, orig, cv.CV_BGR2RGB)
-        self.bmp = wx.BitmapFromBuffer(orig.width, orig.height, orig.tostring())
+        self.bmp = wx.BitmapFromBuffer(640, 300, orig.tostring())
         sbmp = wx.StaticBitmap(self, -1, bitmap=self.bmp) # Display the resulting image
 
         
@@ -196,7 +203,7 @@ class CvDisplayPanel3(wx.Panel):
 
     def merge(self,orig,orig2,storage,grid,warp):
         #orig = cv.QueryFrame(capture)
-        #cv.Normalize(orig)
+        #cv.Normalze(orig)
         # filter for all yellow and blue - everything else is black
         #processed = processor.colorFilterCombine(orig, "yellow", "blue" ,s)
         
@@ -212,16 +219,30 @@ class CvDisplayPanel3(wx.Panel):
         #if it is in the range of 1 to 9, we can try and recalibrate our filter
         #if 1 <= storage.rows < 10:
         #    s = autocalibrate(orig, storage)
-        combined = cv.CreateImage((orig.width*2,orig.height), cv.IPL_DEPTH_8U, 3)
-        #combined = processor.draw_grid(orig)
+        combined = cv.CreateImage((orig.width,orig.height*2), cv.IPL_DEPTH_8U, 3)
+        processor.draw_grid(orig)
+        processor.draw_grid(orig2) 
 
+        orig_np = np.asarray(orig[:,:])
+        orig2_np = np.asarray(orig2[:,:])
+        combined_np = np.asarray(combined[:,:])
+        
+        combined_np = np.concatenate((orig_np, orig2_np),axis=0)
+        #combined = processor.draw_grid(orig)
+        combined = cv.fromarray(combined_np)
+
+        #print orig_np
+        #print orig2_np
+        #print combined.height
+        #print combined.width
+        #print combined_np
         """
         cv.SetImageROI(orig,(100,100,orig2.width,orig2.height))
-        cv.Add(orig2,orig,orig2)
+        cv.Add(combined,orig,combined)
         #cv.Add(combined,orig,combined)
         cv.ResetImageROI(orig)
-        
         """
+        
         return combined
         #self.grid = processor.draw_grid(orig)    
 
@@ -245,7 +266,7 @@ class CvDisplayPanel3(wx.Panel):
 
     TIMER_PLAY_ID = 101 
     def __init__(self, parent):
-        wx.Panel.__init__(self, parent, size=(400,200))
+        wx.Panel.__init__(self, parent)
 
         #magic to stop the flickering
         def SetCompositeMode(self, on=True): 
@@ -295,20 +316,31 @@ class CvDisplayPanel3(wx.Panel):
 class Cameras(wx.Frame):
     """ We simply derive a new class of Frame. """
     def __init__(self, parent, title):
-        wx.Frame.__init__(self, parent, title=title, size=(900,600))
+        wx.Frame.__init__(self, parent, title=title, size=(1280,700))
 
-        self.displayPanel = CvDisplayPanel(self) # display panel for video
-        displayPanel2 = CvDisplayPanel2(self)
-        displayPanel3 = CvDisplayPanel3(self)
+        #self.displayPanel = CvDisplayPanel(self) # display panel for video
+        #displayPanel2 = CvDisplayPanel2(self)
+        #displayPanel3 = CvDisplayPanel3(self)
+        
+        right = wx.BoxSizer(wx.VERTICAL)
+        right.Add(CvDisplayPanel(self), 1, wx.ALL , 0)
+        right.Add(CvDisplayPanel2(self), 1, wx.ALL , 0)
+        #right.Add(CvDisplayPanel3(self), 1, wx.EXPAND | wx.ALL, 0)
+       # self.SetSizer(right)
+        
+        #self.SetSizer(right)
+        #self.SetSizer(right)
+        left = wx.BoxSizer(wx.HORIZONTAL)
+        left.Add(CvDisplayPanel3(self), 1, wx.ALL, 0)
+        #left = wx.BoxSizer(wx.HORIZONTAL)
 
-        hbox = wx.BoxSizer()
-        hbox.Add(self.displayPanel, 1, wx.EXPAND | wx.ALL, 0)
-        hbox.Add(displayPanel2, 1, wx.EXPAND | wx.ALL, 0)       
-        vbox = wx.BoxSizer(wx.VERTICAL)
-        vbox.Add(hbox, 1, wx.EXPAND | wx.ALL, 0)
-        vbox.Add(displayPanel3, 1, wx.EXPAND | wx.ALL, 0)
-
-        self.SetSizer(vbox)
+        #left.Add(CvDisplayPanel3(self), 1, wx.EXPAND | wx.ALL, 0)
+        left.Add(right, 1, wx.ALL, 0)
+        self.SetSizer(left) 
+        
+        
+        
+        
         self.Centre()
 
 

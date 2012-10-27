@@ -145,8 +145,7 @@ def draw_grid(grid):
          #   cv.Line(grid, (x,x), (x,y), color, thickness=1, lineType=8, shift=5)
     #for
      #   Line(img, pt1, pt2, color, thickness=1, lineType=8, shift=0)    
-
-    return grid     
+    
 
 def update_grid(storage, output, grid ):
     #grid = cv.CreateImage((orig.width*2,orig.height), cv.IPL_DEPTH_8U, 3)
